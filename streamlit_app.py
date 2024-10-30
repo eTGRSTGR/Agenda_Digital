@@ -1,39 +1,71 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import os
+import sqlite3
 from datetime import datetime
-
-st.set_page_config(layout='wide')
 
 # Função principal
 def main():
-    st.title("Agenda Digital para Despesas")
-    st.write("Controle suas despesas de forma simples e eficiente.")
+    # Tela de login
+    usuario = tela_login()
 
-    # Carregar dados salvos
-    df = carregar_dados()
+    if usuario != 'default':
+        st.title("Agenda Digital para Despesas")
+        st.write(f"Bem-vindo, {usuario}! Controle suas despesas de forma simples e eficiente.")
 
-    # Adicionar nova despesa na sidebar
-    adicionar_despesa_sidebar(df)
+        # Criar diretório para o usuário, se não existir
+        if not os.path.exists(usuario):
+            os.makedirs(usuario)
 
-    # Adicionar nova categoria na sidebar
-    adicionar_categoria_sidebar(df)
+        # Carregar dados salvos do usuário
+        df = carregar_dados(usuario)
 
-    # Mostrar histórico de despesas
-    mostrar_historico_despesas(df)
+        # Adicionar nova despesa na sidebar
+        adicionar_despesa_sidebar(df, usuario)
 
-    # Análise gráfica
-    analise_grafica(df)
+        # Adicionar nova categoria na sidebar
+        adicionar_categoria_sidebar(df, usuario)
+
+        # Mostrar histórico de despesas
+        mostrar_historico_despesas(df)
+
+        # Análise gráfica
+        analise_grafica(df)
+
+# Função para a tela de login
+def tela_login():
+    if 'usuario' not in st.session_state:
+        with st.sidebar:
+            st.header("Login")
+            usuario = st.text_input("Nome de Usuário")
+            if st.button("Entrar") and usuario:
+                # Conectar ao banco de dados SQLite3
+                conn = sqlite3.connect('usuarios.db')
+                cursor = conn.cursor()
+                
+                # Criar tabela de usuários se não existir
+                cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
+                                    nome TEXT PRIMARY KEY
+                                  )''')
+                
+                # Inserir novo usuário se não existir
+                cursor.execute('INSERT OR IGNORE INTO usuarios (nome) VALUES (?)', (usuario,))
+                conn.commit()
+                conn.close()
+                
+                st.session_state['usuario'] = usuario
+    return st.session_state.get('usuario', 'default')
 
 # Função para carregar dados salvos
-def carregar_dados():
+def carregar_dados(usuario):
     try:
-        return pd.read_csv("despesas.csv")
+        return pd.read_csv(f"{usuario}/despesas.csv")
     except FileNotFoundError:
         return pd.DataFrame(columns=["Categoria", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
 
 # Função para adicionar nova despesa na sidebar
-def adicionar_despesa_sidebar(df):
+def adicionar_despesa_sidebar(df, usuario):
     with st.sidebar:
         st.header("Adicionar Nova Despesa")
         mes = st.selectbox("Mês", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
@@ -42,12 +74,12 @@ def adicionar_despesa_sidebar(df):
 
         if st.button("Adicionar Despesa"):
             df = adicionar_despesa(df, mes, categoria, valor)
-            df.to_csv("despesas.csv", index=False)
+            df.to_csv(f"{usuario}/despesas.csv", index=False)
             st.success("Despesa adicionada com sucesso!")
             st.balloons()  # Feedback visual após adicionar despesa
 
 # Função para adicionar nova categoria na sidebar
-def adicionar_categoria_sidebar(df):
+def adicionar_categoria_sidebar(df, usuario):
     with st.sidebar:
         st.header("Adicionar Nova Categoria")
         nova_categoria = st.text_input("Nome da Nova Categoria")
@@ -60,7 +92,7 @@ def adicionar_categoria_sidebar(df):
                     "Julho": [0.0], "Agosto": [0.0], "Setembro": [0.0], "Outubro": [0.0], "Novembro": [0.0], "Dezembro": [0.0]
                 })
                 df = pd.concat([df, nova_linha], ignore_index=True)
-                df.to_csv("despesas.csv", index=False)
+                df.to_csv(f"{usuario}/despesas.csv", index=False)
                 st.success("Categoria adicionada com sucesso!")
             elif nova_categoria in df['Categoria'].values:
                 st.warning("Essa categoria já existe.")
