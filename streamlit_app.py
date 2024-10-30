@@ -5,6 +5,8 @@ import os
 import sqlite3
 from datetime import datetime
 
+st.set_page_config(layout='wide')
+
 # Função principal
 def main():
     # Tela de login
